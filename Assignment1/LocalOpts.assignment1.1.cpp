@@ -15,8 +15,7 @@
 using namespace llvm;
 
 bool runOnBasicBlock(BasicBlock &B) {
-
-  // All'interno della funzione runOnBasicBlock
+// All'interno della funzione runOnBasicBlock
   //FATTO DA ME
   // Itera attraverso tutte le istruzioni del blocco di base
   for (auto &Inst : B) {
@@ -45,43 +44,42 @@ bool runOnBasicBlock(BasicBlock &B) {
           if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
               if (Op0Const->isZero()) {
                   Inst.replaceAllUsesWith(Op1);
-                  Inst.eraseFromParent();
+                  //Inst.eraseFromParent();
                   continue;
               }
           } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
               if (Op1Const->isZero()) {
                   Inst.replaceAllUsesWith(Op0);
-                  Inst.eraseFromParent();
+                  //Inst.eraseFromParent();
                   continue;
               }
           }
       }
 
-      // Ottimizzazione per la moltiplicazione per 1
-if (Inst.getOpcode() == Instruction::Mul) {
-    Value *Op0 = Inst.getOperand(0);
-    Value *Op1 = Inst.getOperand(1);
-    Constant *One = ConstantInt::get(Op0->getType(), 1); 
+            // Ottimizzazione per la moltiplicazione per 1
+        if (Inst.getOpcode() == Instruction::Mul) {
+            Value *Op0 = Inst.getOperand(0);
+            Value *Op1 = Inst.getOperand(1);
+            Constant *One = ConstantInt::get(Op0->getType(), 1); 
 
-    if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
-        if (Op0Const->equalsInt(1)) {
-            Inst.replaceAllUsesWith(Op1);
-            Inst.eraseFromParent();
-            continue;
-        }
-    } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
-        if (Op1Const->equalsInt(1)) {
-            Inst.replaceAllUsesWith(Op0);
-            Inst.eraseFromParent();
-            continue;
+            if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
+                if (Op0Const->equalsInt(1)) {
+                    Inst.replaceAllUsesWith(Op1);
+                    //Inst.eraseFromParent();
+                    continue;
+                }
+            } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
+                if (Op1Const->equalsInt(1)) {
+                    Inst.replaceAllUsesWith(Op0);
+                    //Inst.eraseFromParent();
+                    continue;
+                }
+            }
         }
     }
+    return true;
 }
 
-return true;
-
-  }
-}
 
 bool runOnFunction(Function &F) {
   bool Transformed = false;
