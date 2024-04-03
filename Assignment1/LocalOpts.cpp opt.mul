@@ -78,7 +78,7 @@ for (auto &Inst : B) {
                 
                 // Sostituisci tutte le occorrenze dell'istruzione di moltiplicazione con l'istruzione di shift
                 Inst.replaceAllUsesWith(ShiftInst);
-                break;
+                continue;
             }
         }
     }
