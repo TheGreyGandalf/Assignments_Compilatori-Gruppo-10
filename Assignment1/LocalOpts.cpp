@@ -67,14 +67,13 @@ bool runOnBasicBlock(BasicBlock &B) {
   // Controlla la documentazione e prova a rispondere.
   Inst1st.replaceAllUsesWith(NewInst);
 
-
-  //Codice che aggiunge una istruzione di Shift 
+  // Codice che aggiunge una istruzione di Shift
 
   for (auto &Inst : B) {
     // Verifica se l'istruzione è di tipo moltiplicazione
     if (Inst.getOpcode() == Instruction::Mul) {
-      //Caso in cui si cerca di ottimizzare una MOLTIPLICAZIONE
-      // Verifica se il secondo operando è una costante
+      // Caso in cui si cerca di ottimizzare una MOLTIPLICAZIONE
+      //  Verifica se il secondo operando è una costante
       if (auto *C = dyn_cast<ConstantInt>(Inst.getOperand(1))) {
         // Verifica se la costante è una potenza di 2
         if (C->getValue().isPowerOf2()) {
@@ -86,35 +85,42 @@ bool runOnBasicBlock(BasicBlock &B) {
 
           // Sostituisci tutte le occorrenze dell'istruzione di moltiplicazione
           // con l'istruzione di shift
+          Inst.replaceAllUsesWith(ShiftInst);
+          continue;
+        } else { // Caso in cui vi è una operazione di log "con resto"
+                 //  Il resto è ottenibile mediante C->getValue().logBase2()
+                 // Caso in cui vi è una operazione di log "con resto"
+          llvm::APInt CPlusOne = C->getValue() + 1;
+          llvm::APInt CMinusOne = C->getValue() - 1;
+          if (CMinusOne.isPowerOf2()) {
+            Instruction *ShiftInst = BinaryOperator::Create(
+                Instruction::Shl, Inst.getOperand(0),
+                ConstantInt::get(C->getType(), CMinusOne.logBase2()), "",
+                &Inst);
             Inst.replaceAllUsesWith(ShiftInst);
+            ConstantInt *oneConstant = ConstantInt::get(C->getType(), 1);
+            Instruction *SubInst = BinaryOperator::Create(
+                Instruction::Sub, Inst.getOperand(0), oneConstant, "", &Inst);
+            SubInst->insertAfter(&Inst);
             continue;
           }
-        else{        //Caso in cui vi è una operazione di log "con resto"
-                      // Il resto è ottenibile mediante C->getValue().logBase2()
-            // Operazioni ancora in fase di lavorazione e incerte, attesa di risposta da marongiu
-
-            //Questo stampa il resto che c'è dal logaritmo
-            int resto = C->getValue().logBase2();
-            int num = 1; 
-            for (int i = 0; i<= resto-1; i++) {
-               num *= 2;
-            }
-            //Stampa di qual'è il valore di logaritmo che si avvicina di più
-            outs() << "\t"<< "Il numero di logaritmo più basso è: "<<num<<"\n";
-            outs() << "\t"<< "Il numero di logaritmo più alto è: "<<num+1<<"\n";
-            int num_intero = C->getValue().getSExtValue();
-            //Stampa di qual'era il valore che era stato richiesto per la shift
-            outs() << "\t"<< "Il numero di moltiplicazione: "<<num_intero<<"\n";
-
-            int appross = (num_intero<<(num+1));
-            outs() << "Numero allungato in alto:"<< appross << "\n";
-
+          if (CPlusOne.isPowerOf2()) {
+            Instruction *ShiftInst = BinaryOperator::Create(
+                Instruction::Shl, Inst.getOperand(0),
+                ConstantInt::get(C->getType(), CPlusOne.logBase2()), "", &Inst);
+            Inst.replaceAllUsesWith(ShiftInst);
+            ConstantInt *oneConstant = ConstantInt::get(C->getType(), 1);
+            Instruction *AddInst = BinaryOperator::Create(
+                Instruction::Add, Inst.getOperand(0), oneConstant, "", &Inst);
+            AddInst->insertAfter(&Inst);
+            continue;
+          }
         }
       }
-    }
-    else if (Inst.getOpcode() == Instruction::UDiv) {       //La U sta per Unsigned
-      //Caso in cui si cerca di ottimizzare una DIVISIONE 
-       //Le operazioni seguenti sono pressochè identiche a quelle per la moltiplicazione
+    } else if (Inst.getOpcode() == Instruction::SDiv) { // La U sta per Unsigned
+      // Caso in cui si cerca di ottimizzare una DIVISIONE
+      // Le operazioni seguenti sono pressochè identiche a quelle per la
+      // moltiplicazione
       // Verifica se il secondo operando è una costante
       if (auto *C = dyn_cast<ConstantInt>(Inst.getOperand(1))) {
         // Verifica se la costante è una potenza di 2
@@ -128,13 +134,95 @@ bool runOnBasicBlock(BasicBlock &B) {
           // Sostituisci tutte le occorrenze dell'istruzione di moltiplicazione
           // con l'istruzione di shift
           Inst.replaceAllUsesWith(ShiftInst);
-          break;
+          continue;
+        }
+      }
+    } else if (Inst.getOpcode() == Instruction::Add) {
+      // Ultimo punto dell'assignment
+
+      // Controllo se è una ADD che utilizza un valore una volta sola e se è
+      // seguita da una SUB, quindi ci troviamo nel caso di una ottimizzazione
+      // che è possibile eseguire!
+      if (Inst.getNumUses() == 1) {
+        Instruction *NextInst = dyn_cast<Instruction>(*Inst.user_begin());
+        // Cerco se la prossima istruzione è una SUB e non nulla
+        if (NextInst && NextInst->getOpcode() == Instruction::Sub) {
+          // Salvataggio del valore che l'istruzione andava a generare
+          Value *AddResult = &Inst;
+          // Salvo quali sono gli utilizzatori della sub che poi si eliminerà
+          Instruction *SubInst = cast<Instruction>(Inst.use_begin()->getUser());
+
+          // Ottengo gli operandi delle due operazioni
+          Value *AddOperand = Inst.getOperand(1); // b è il secondo operando
+          Value *SubOperand = SubInst->getOperand(1); // b è il secondo operando
+
+          // Controllo se l'operando di addizione e sottrazione è lo stesso
+          if (AddOperand == SubOperand) {
+
+            // Elimino la sub
+            // SubInst->eraseFromParent();
+            // Il mio intento è aggiungere una istruzione che faccia la stessa
+            // cosa Invece di eliminare le istruzioni, aggiungo in fondo
+            // l'istruzione che mi consente di riassumere il compito Crea
+            // un'istruzione di shift
+
+            Instruction *InstAdd = BinaryOperator::Create(
+                Instruction::Add, Inst.getOperand(0),
+                ConstantInt::getNullValue(Inst.getType()));
+
+            // Alla fine rimpiazzo la sub con una add a 0
+            // InstAdd->insertAfter(SubInst);
+            //  Si rimpiazzano tutti gli utilizzi della operazione Inst con b
+            Inst.replaceAllUsesWith(InstAdd);
+
+            continue;
+          }
+        }
+      } else { // Parte scritta dal mio compagno di gruppo
+        
+          // prendo i due operandi
+          Value *Op0 = Inst.getOperand(0);
+          Value *Op1 = Inst.getOperand(1);
+          if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
+            if (Op0Const->isZero()) {
+              Inst.replaceAllUsesWith(Op1);
+              // Inst.eraseFromParent();             commentanto perhè mi dava
+              // errore di segmentation fault
+              continue;
+            }
+          } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
+            if (Op1Const->isZero()) {
+              Inst.replaceAllUsesWith(Op0);
+              // Inst.eraseFromParent();             commentanto perhè mi dava
+              // errore di segmentation fault
+              continue;
+            }
+        }
+      }
+      // Ottimizzazione per la moltiplicazione per 1
+      if (Inst.getOpcode() == Instruction::Mul) {
+        Value *Op0 = Inst.getOperand(0);
+        Value *Op1 = Inst.getOperand(1);
+        if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
+          if (Op0Const->equalsInt(1)) {
+            Inst.replaceAllUsesWith(Op1);
+            // Inst.eraseFromParent();     commentanto perhè mi dava errore di
+            // segmentation fault
+            continue;
+          }
+        } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
+          if (Op1Const->equalsInt(1)) {
+            Inst.replaceAllUsesWith(Op0);
+            // Inst.eraseFromParent();     commentanto perhè mi dava errore di
+            // segmentation fault
+            continue;
+          }
         }
       }
     }
   }
 
-  return true;
+return true;
 }
 
 bool runOnFunction(Function &F) {
