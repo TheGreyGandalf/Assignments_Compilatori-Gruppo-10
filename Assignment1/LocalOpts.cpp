@@ -72,6 +72,26 @@ bool runOnBasicBlock(BasicBlock &B) {
   for (auto &Inst : B) {
     // Verifica se l'istruzione è di tipo moltiplicazione
     if (Inst.getOpcode() == Instruction::Mul) {
+
+      // Ottimizzazione della moltiplicazione per 1
+      Value *Op0 = Inst.getOperand(0);
+      Value *Op1 = Inst.getOperand(1);
+      if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
+        if (Op0Const->equalsInt(1)) {
+          Inst.replaceAllUsesWith(Op1);
+          // Inst.eraseFromParent();     commentanto perhè mi dava errore di
+          // segmentation fault
+          continue;
+        }
+      } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
+        if (Op1Const->equalsInt(1)) {
+          Inst.replaceAllUsesWith(Op0);
+          // Inst.eraseFromParent();     commentanto perhè mi dava errore di
+          // segmentation fault
+          continue;
+        }
+      }
+
       // Caso in cui si cerca di ottimizzare una MOLTIPLICAZIONE
       //  Verifica se il secondo operando è una costante
       if (auto *C = dyn_cast<ConstantInt>(Inst.getOperand(1))) {
@@ -117,7 +137,8 @@ bool runOnBasicBlock(BasicBlock &B) {
           }
         }
       }
-    } else if (Inst.getOpcode() == Instruction::SDiv) { // La U sta per Unsigned
+    }
+    if (Inst.getOpcode() == Instruction::SDiv) { // La U sta per Unsigned
       // Caso in cui si cerca di ottimizzare una DIVISIONE
       // Le operazioni seguenti sono pressochè identiche a quelle per la
       // moltiplicazione
@@ -137,7 +158,8 @@ bool runOnBasicBlock(BasicBlock &B) {
           continue;
         }
       }
-    } else if (Inst.getOpcode() == Instruction::Add) {
+    }
+    if (Inst.getOpcode() == Instruction::Add) {
       // Ultimo punto dell'assignment
 
       // Controllo se è una ADD che utilizza un valore una volta sola e se è
@@ -159,62 +181,49 @@ bool runOnBasicBlock(BasicBlock &B) {
           // Controllo se l'operando di addizione e sottrazione è lo stesso
           if (AddOperand == SubOperand) {
 
-            // Elimino la sub
-            // SubInst->eraseFromParent();
             // Il mio intento è aggiungere una istruzione che faccia la stessa
             // cosa Invece di eliminare le istruzioni, aggiungo in fondo
-            // l'istruzione che mi consente di riassumere il compito Crea
-            // un'istruzione di shift
+            // l'istruzione che mi consente di riassumere il compito 
 
-            Instruction *InstAdd = BinaryOperator::Create(
-                Instruction::Add, Inst.getOperand(0),
+            Instruction *InstAddOp = BinaryOperator::Create(
+                Instruction::Add, Inst.getOperand(1),
                 ConstantInt::getNullValue(Inst.getType()));
 
+            // Inserisco l'istruzione di addizione dopo l'istruzione corrente
+
+            InstAddOp->insertAfter(&Inst);
+            // Sostituisco tutti gli utilizzi dell'istruzione corrente con
+            // l'istruzione di addizione
+            Inst.replaceAllUsesWith(InstAddOp);
+            // SubInst->replaceAllUsesWith(InstAdd);
+
+            // Rimuovo l'istruzione corrente
+            //Inst.eraseFromParent();
+
             // Alla fine rimpiazzo la sub con una add a 0
-            // InstAdd->insertAfter(SubInst);
             //  Si rimpiazzano tutti gli utilizzi della operazione Inst con b
-            Inst.replaceAllUsesWith(InstAdd);
 
             continue;
           }
         }
-      } else { // Parte scritta dal mio compagno di gruppo
-        
-          // prendo i due operandi
-          Value *Op0 = Inst.getOperand(0);
-          Value *Op1 = Inst.getOperand(1);
-          if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
-            if (Op0Const->isZero()) {
-              Inst.replaceAllUsesWith(Op1);
-              // Inst.eraseFromParent();             commentanto perhè mi dava
-              // errore di segmentation fault
-              continue;
-            }
-          } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
-            if (Op1Const->isZero()) {
-              Inst.replaceAllUsesWith(Op0);
-              // Inst.eraseFromParent();             commentanto perhè mi dava
-              // errore di segmentation fault
-              continue;
-            }
-        }
-      }
-      // Ottimizzazione per la moltiplicazione per 1
-      if (Inst.getOpcode() == Instruction::Mul) {
+      } else { // Parte scritta dal mio compagno di gruppo (In cui i casi di
+               // utilizzo non sono solamente uno)
+
+        // prendo i due operandi
         Value *Op0 = Inst.getOperand(0);
         Value *Op1 = Inst.getOperand(1);
         if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
-          if (Op0Const->equalsInt(1)) {
+          if (Op0Const->isZero()) {
             Inst.replaceAllUsesWith(Op1);
-            // Inst.eraseFromParent();     commentanto perhè mi dava errore di
-            // segmentation fault
+            // Inst.eraseFromParent();             commentanto perhè mi dava
+            // errore di segmentation fault
             continue;
           }
         } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
-          if (Op1Const->equalsInt(1)) {
+          if (Op1Const->isZero()) {
             Inst.replaceAllUsesWith(Op0);
-            // Inst.eraseFromParent();     commentanto perhè mi dava errore di
-            // segmentation fault
+            // Inst.eraseFromParent();             commentanto perhè mi dava
+            // errore di segmentation fault
             continue;
           }
         }
@@ -222,7 +231,7 @@ bool runOnBasicBlock(BasicBlock &B) {
     }
   }
 
-return true;
+  return true;
 }
 
 bool runOnFunction(Function &F) {
