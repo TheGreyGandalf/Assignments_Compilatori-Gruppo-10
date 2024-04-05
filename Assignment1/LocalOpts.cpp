@@ -186,7 +186,7 @@ bool runOnBasicBlock(BasicBlock &B) {
             // l'istruzione che mi consente di riassumere il compito 
 
             Instruction *InstAddOp = BinaryOperator::Create(
-                Instruction::Add, Inst.getOperand(1),
+                Instruction::Add, Inst.getOperand(0),
                 ConstantInt::getNullValue(Inst.getType()));
 
             // Inserisco l'istruzione di addizione dopo l'istruzione corrente
