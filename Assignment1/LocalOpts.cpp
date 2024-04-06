@@ -183,22 +183,21 @@ bool runOnBasicBlock(BasicBlock &B) {
 
             // Il mio intento è aggiungere una istruzione che faccia la stessa
             // cosa Invece di eliminare le istruzioni, aggiungo in fondo
-            // l'istruzione che mi consente di riassumere il compito 
+            // l'istruzione che mi consente di riassumere il compito
 
             Instruction *InstAddOp = BinaryOperator::Create(
                 Instruction::Add, Inst.getOperand(0),
-                ConstantInt::getNullValue(Inst.getType()));
+                ConstantInt::get(Inst.getType(), 0));
 
             // Inserisco l'istruzione di addizione dopo l'istruzione corrente
 
-            InstAddOp->insertAfter(&Inst);
-            // Sostituisco tutti gli utilizzi dell'istruzione corrente con
-            // l'istruzione di addizione
+            InstAddOp->insertBefore(&Inst);
             Inst.replaceAllUsesWith(InstAddOp);
-            // SubInst->replaceAllUsesWith(InstAdd);
 
-            // Rimuovo l'istruzione corrente
+            InstAddOp->insertAfter(SubInst);
+            SubInst->replaceAllUsesWith(InstAddOp);
             //Inst.eraseFromParent();
+            //SubInst->eraseFromParent();
 
             // Alla fine rimpiazzo la sub con una add a 0
             //  Si rimpiazzano tutti gli utilizzi della operazione Inst con b
