@@ -180,27 +180,24 @@ bool runOnBasicBlock(BasicBlock &B) {
 
           // Controllo se l'operando di addizione e sottrazione è lo stesso
           if (AddOperand == SubOperand) {
-
             // Il mio intento è aggiungere una istruzione che faccia la stessa
             // cosa Invece di eliminare le istruzioni, aggiungo in fondo
             // l'istruzione che mi consente di riassumere il compito
-
-            Instruction *InstAddOp = BinaryOperator::Create(
-                Instruction::Add, Inst.getOperand(0),
-                ConstantInt::get(Inst.getType(), 0));
-
+            Instruction *InstAddOp =
+                BinaryOperator::Create(Instruction::Add, Inst.getOperand(0),
+                                       ConstantInt::get(Inst.getType(), 0));
             // Inserisco l'istruzione di addizione dopo l'istruzione corrente
 
             InstAddOp->insertBefore(&Inst);
             Inst.replaceAllUsesWith(InstAddOp);
 
-            InstAddOp->insertAfter(SubInst);
-            SubInst->replaceAllUsesWith(InstAddOp);
-            //Inst.eraseFromParent();
-            //SubInst->eraseFromParent();
+            InstAddOp->insertAfter(NextInst);
+            NextInst->replaceAllUsesWith(InstAddOp);
+
+            NextInst->eraseFromParent();
 
             // Alla fine rimpiazzo la sub con una add a 0
-            //  Si rimpiazzano tutti gli utilizzi della operazione Inst con b
+            // Si rimpiazzano tutti gli utilizzi della operazione Inst con b
 
             continue;
           }
