@@ -67,8 +67,7 @@ bool runOnBasicBlock(BasicBlock &B) {
   // Controlla la documentazione e prova a rispondere.
   Inst1st.replaceAllUsesWith(NewInst);
 
-  // Codice che aggiunge una istruzione di Shift
-
+  // Codice per il Primo assignment
   for (auto &Inst : B) {
     // Verifica se l'istruzione è di tipo moltiplicazione
     if (Inst.getOpcode() == Instruction::Mul) {
@@ -107,12 +106,12 @@ bool runOnBasicBlock(BasicBlock &B) {
           // con l'istruzione di shift
           Inst.replaceAllUsesWith(ShiftInst);
           continue;
-        } else { // Caso in cui vi è una operazione di log "con resto"
-                 //  Il resto è ottenibile mediante C->getValue().logBase2()
-                 // Caso in cui vi è una operazione di log "con resto"
+        } else {
+          // Caso in cui vi è una operazione di log "con resto"
           llvm::APInt CPlusOne = C->getValue() + 1;
           llvm::APInt CMinusOne = C->getValue() - 1;
           if (CMinusOne.isPowerOf2()) {
+            // Creazione delle istruzioni e rimpiazzo di quelle da ottimizzare
             Instruction *ShiftInst = BinaryOperator::Create(
                 Instruction::Shl, Inst.getOperand(0),
                 ConstantInt::get(C->getType(), CMinusOne.logBase2()), "",
@@ -125,11 +124,14 @@ bool runOnBasicBlock(BasicBlock &B) {
             continue;
           }
           if (CPlusOne.isPowerOf2()) {
+            //Estrazione della potenza di 2
             Instruction *ShiftInst = BinaryOperator::Create(
                 Instruction::Shl, Inst.getOperand(0),
                 ConstantInt::get(C->getType(), CPlusOne.logBase2()), "", &Inst);
+
             Inst.replaceAllUsesWith(ShiftInst);
             ConstantInt *oneConstant = ConstantInt::get(C->getType(), 1);
+
             Instruction *AddInst = BinaryOperator::Create(
                 Instruction::Add, Inst.getOperand(0), oneConstant, "", &Inst);
             AddInst->insertAfter(&Inst);
@@ -140,8 +142,7 @@ bool runOnBasicBlock(BasicBlock &B) {
     }
     if (Inst.getOpcode() == Instruction::SDiv) { // La U sta per Unsigned
       // Caso in cui si cerca di ottimizzare una DIVISIONE
-      // Le operazioni seguenti sono pressochè identiche a quelle per la
-      // moltiplicazione
+      //
       // Verifica se il secondo operando è una costante
       if (auto *C = dyn_cast<ConstantInt>(Inst.getOperand(1))) {
         // Verifica se la costante è una potenza di 2
@@ -160,7 +161,8 @@ bool runOnBasicBlock(BasicBlock &B) {
       }
     }
     if (Inst.getOpcode() == Instruction::Add) {
-      // Ultimo punto dell'assignment
+      // Ultimo punto dell'assignment, caso in cui si cercano di ottimizzare
+      // delle ADDIZIONI
 
       // Controllo se è una ADD che utilizza un valore una volta sola e se è
       // seguita da una SUB, quindi ci troviamo nel caso di una ottimizzazione
@@ -188,9 +190,10 @@ bool runOnBasicBlock(BasicBlock &B) {
                                        ConstantInt::get(Inst.getType(), 0));
             // Inserisco l'istruzione di addizione dopo l'istruzione corrente
 
+            // Aggiunta dell'istruzione e rimpiazzo di quella nuova
             InstAddOp->insertBefore(&Inst);
             Inst.replaceAllUsesWith(InstAddOp);
-
+            // Riaggiunta dell'istruzione che sostituisce anche la sub
             InstAddOp->insertAfter(NextInst);
             NextInst->replaceAllUsesWith(InstAddOp);
 
@@ -202,24 +205,21 @@ bool runOnBasicBlock(BasicBlock &B) {
             continue;
           }
         }
-      } else { // Parte scritta dal mio compagno di gruppo (In cui i casi di
-               // utilizzo non sono solamente uno)
+      } else {
+        // Ottimizzazioni per la moltiplicazione per 0
 
         // prendo i due operandi
         Value *Op0 = Inst.getOperand(0);
         Value *Op1 = Inst.getOperand(1);
+        //Creazione delle istruzioni e rimpiazzo utilizzo
         if (auto *Op0Const = dyn_cast<ConstantInt>(Op0)) {
           if (Op0Const->isZero()) {
             Inst.replaceAllUsesWith(Op1);
-            // Inst.eraseFromParent();             commentanto perhè mi dava
-            // errore di segmentation fault
             continue;
           }
         } else if (auto *Op1Const = dyn_cast<ConstantInt>(Op1)) {
           if (Op1Const->isZero()) {
             Inst.replaceAllUsesWith(Op0);
-            // Inst.eraseFromParent();             commentanto perhè mi dava
-            // errore di segmentation fault
             continue;
           }
         }
