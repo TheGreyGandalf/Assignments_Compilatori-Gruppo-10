@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/LLVMContext.h>
@@ -39,8 +40,11 @@ bool isOperandLI(const Use &usee, Loop &l, auto list) {
 bool doesDominateExitPoint(DominatorTree &dominators, Instruction *instr,
                            auto NodiUscita) {
   bool dominate = true;
+  // Scorro tutti i nodi di uscita
   for (const auto edge : NodiUscita)
+    // Controllo se il dominator controlla l'istruzione
     dominate &= dominators.dominates(instr, edge.second);
+  // Ritorno true e false
   return dominate;
 };
 
@@ -72,19 +76,6 @@ PreservedAnalyses Chains::run(Loop &L, LoopAnalysisManager &LAM,
     outs() << *BB << "\n";
 
     outs() << "********\n";
-    // Modifiche del codice fatto da me
-
-    /*
-    //Parte di Use CHAINS e UD Chains
-    // Siamo nel BB
-    BasicBlock *interno = *BI;
-    for (auto instr = interno->begin(); instr != interno->end(); ++instr) {
-      // Siamo nella istruzioe
-      Instruction &in = *instr;
-      outs() << "Sono l'istruzione" << in << "\n";
-      outs() << "LHS:";
-      //outs() << in.printAsOperand(outs(), false) << "\n";
-    }*/
   }
 
   auto IstruzioniLoopInv = std::unordered_set<Instruction *>{};
@@ -109,23 +100,50 @@ PreservedAnalyses Chains::run(Loop &L, LoopAnalysisManager &LAM,
     }
   }
 
+  int ind = 1;
+  errs() << "\nStampa delle istruzioni che sono loop invariant\n";
   for (auto *i : IstruzioniLoopInv) {
+    errs() << "Istruzione numero " << ind << ": ";
     i->print(errs());
     errs() << "\n";
+    ind++;
   }
 
-  // Identificazione dei blocchi uscita dal loop
-  Instruction *instr;
-  auto NodiUscita = SmallVector<std::pair<BasicBlock *, BasicBlock *>>{};
+  // Ora arriva la seconda parte, scorriamo l'unordered set che abbiamo creato
+  // Per poi controllare se le istruzioni immagazzinate sono
+  // Dominant, se lo sono è una istruzione candicata ad essere spostata
+  // nel pre-header
 
-  L.getExitEdges(NodiUscita);
-  // const auto parentFunction = L.getBlocks()[0]->getParent();
-  DominatorTree &DT = LAR.DT;
-  //Passaggio alla funzione che controlla se le istruzioni dominano tutte le istruzioni
-  doesDominateExitPoint(DT, instr, NodiUscita);
+  // Iterazione sugli elementi del set riempito prima
+  for (Instruction *instr : IstruzioniLoopInv) {
 
-  // DominatorTree &DT = LAR.DT;
-  // BasicBlock *BB = (DT.getRootNode())->getBlock();
+    // Identificazione dei blocchi uscita dal loop
+    auto NodiUscita = SmallVector<std::pair<BasicBlock *, BasicBlock *>>{};
+
+    // Si inserisce all'interno dello SmallVector gli edge di uscita del Loop
+    L.getExitEdges(NodiUscita);
+    // Si trovano quelli che sono i Dominator Tree
+    DominatorTree &DT = LAR.DT;
+    // Passaggio alla funzione che controlla se le istruzioni dominano tutte le
+    // istruzioni
+    bool SeDomina = doesDominateExitPoint(DT, instr, NodiUscita);
+    // se questa variabile è vera significa che domina tutte le sue definzioni
+    // future Quindi si devono utilizzare i phinode
+
+    /*PARTE PHI NODE*/
+    if (SeDomina) {
+      BasicBlock *preHeader = L.getLoopPreheader();
+      // Qua sposto l'istruzione al pre headers
+      BasicBlock *Header = L.getHeader();
+      // La remove lo "sgancia" dalla lista padre, per eliminare si usa erase
+      // instr->removeFromParent();
+      //preHeader->getInstructionList(instr);
+    }
+  }
+
+  // Devo prima usare un set per cercare tutte le istruzioni che servono per
+  // essere rimosse Poi controlli se sono dominanti Se lo sono iteri nella
+  // istruzione e la sposti
 
   return PreservedAnalyses::all();
 }
