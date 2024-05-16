@@ -1,3 +1,8 @@
+# Partecipanti del gruppo 10 (Ordine alfabetico):
+- Manuele Baracchi
+- Francesca Neri
+- Emanuele Ugolotti
+
 # Assignments_Compilatori
 Serie di assignment che saranno consegnati per Compilatori
 
