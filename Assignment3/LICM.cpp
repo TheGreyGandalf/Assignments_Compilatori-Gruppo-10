@@ -41,7 +41,7 @@ bool doesDominateExitPoint(DominatorTree &dominators, Instruction *instr,
                            auto NodiUscita) {
   bool dominate = true;
   // Scorro tutti i nodi di uscita
-  for (const auto edge : NodiUscita)
+  for (const auto & edge : NodiUscita)
     // Controllo se il dominator controlla l'istruzione
     dominate &= dominators.dominates(instr, edge.second);
   // Ritorno true e false
@@ -114,6 +114,9 @@ PreservedAnalyses Chains::run(Loop &L, LoopAnalysisManager &LAM,
   // Dominant, se lo sono è una istruzione candicata ad essere spostata
   // nel pre-header
 
+  //Prendo il basic block preheader
+  BasicBlock *preHeader = L.getLoopPreheader();
+
   // Iterazione sugli elementi del set riempito prima
   for (Instruction *instr : IstruzioniLoopInv) {
 
@@ -132,12 +135,15 @@ PreservedAnalyses Chains::run(Loop &L, LoopAnalysisManager &LAM,
 
     /*PARTE PHI NODE*/
     if (SeDomina) {
-      BasicBlock *preHeader = L.getLoopPreheader();
-      // Qua sposto l'istruzione al pre headers
-      BasicBlock *Header = L.getHeader();
-      // La remove lo "sgancia" dalla lista padre, per eliminare si usa erase
-      // instr->removeFromParent();
-      //preHeader->getInstructionList(instr);
+      //Ottengo il terminatore del preheader, ovvero la sua ultima istruzione
+      Instruction * Ultima = preHeader->getTerminator();
+
+      //Sgancia l'istruzione dal basic block in cui è attualmente
+      instr->removeFromParent();
+      //Aggancia l'istruzione alla fine del preheader
+      //Non so bene come mai se utilizzo after viene un segfault
+      //Penso sia per il fatto che i puntatori si scombinano
+      instr->insertBefore(Ultima); 
     }
   }
 
