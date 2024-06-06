@@ -1,3 +1,4 @@
+
 #include "llvm/Transforms/Utils/LoopFusionPass.h"
 #include "llvm/IR/Dominators.h"
 #include <fstream>
@@ -144,9 +145,12 @@ PreservedAnalyses LoopFusionPass::run(Function &F, FunctionAnalysisManager &AM) 
   DependenceInfo &DI = AM.getResult<DependenceAnalysis>(F);
 
   // Scorrimento dei loop all'interno della Funzione
-  for (auto iteraz = LI.end() - 1; iteraz != LI.begin(); --iteraz) { //-- spostato davanti alla variabile
+  for (auto iteraz = LI.begin(), end = LI.end(); iteraz != end; ++iteraz) {
     Loop *Primo = *iteraz;
-    Loop *Secondo = *(iteraz - 1); //-al poso del +
+    if (std::next(iteraz) == end) // Verifica se siamo all'ultimo loop
+      break;
+
+    Loop *Secondo = *std::next(iteraz); // Ottieni il loop successivo
 
     bool primo = Controllo_1(Primo, Secondo);
     bool secondo = Controllo_2(Primo, Secondo, SC);
