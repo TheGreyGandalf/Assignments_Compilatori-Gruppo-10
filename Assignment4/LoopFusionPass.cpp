@@ -57,12 +57,12 @@ bool Controllo_2(Loop *First, Loop *Second, ScalarEvolution &SC) {
   const SCEV *PR = SC.getBackedgeTakenCount(First);
   const SCEV *SE = SC.getBackedgeTakenCount(Second);
 
-  if (!isa<SCEVCouldNotCompute>(PR) && !isa<SCEVCouldNotCompute>(SE)) {
+  //if (!isa<SCEVCouldNotCompute>(PR) && !isa<SCEVCouldNotCompute>(SE)) {
 
     if (PR == SE) {
       return true;
     }
-  }
+  //}
 
   outs() << "I due loop non hanno lo stesso numero di iterazioni\n";
   return false;
@@ -143,21 +143,17 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
   // Scorrimento dei loop all'interno della Funzione
 
   //for (auto iteraz = LI.end() - 1; iteraz != LI.begin(); --iteraz) {
-  for (auto iteraz = LI.begin(); iteraz != LI.end(); iteraz++) {
-    //Ciclo da prendere con le pinze, non sono sicuro
+  for (auto iteraz = LI.getTopLevelLoops().end()-1; iteraz != LI.getTopLevelLoops().begin(); --iteraz) {
 
     Loop *Primo = *iteraz;
-    auto nextIteraz = std::next(iteraz);
-
-    if (nextIteraz == LI.end())
-      break;
-
+    //auto nextIteraz = std::next(iteraz);
+    //if (nextIteraz == LI.end())
+    //break;
     //if (iteraz == LI.begin())
     //  break;
+    Loop *Secondo = *(iteraz - 1);
 
-    Loop *Secondo = *nextIteraz;
-    //*(iteraz + 1);
-    
+    //*nextIteraz;
     outs() << "Ora effettuiamo i controlli\n";
 
     bool primo = Controllo_1(Primo, Secondo);
@@ -169,9 +165,11 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
       outs() << "I due loop sono adiacenti\n";
     }
     else {
+      outs() << primo<<"\n"<<secondo<<"\n"<<terzo<<"\n"<<quarto<<"\n";
       outs() << "Due cicli non adiacenti\n";
     }
   }
+  //outs() <<"Fuori\n";
 
   return PreservedAnalyses::all();
 }
