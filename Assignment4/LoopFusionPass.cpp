@@ -16,7 +16,6 @@
 #include <llvm/Analysis/ScalarEvolution.h>
 
 #include <sched.h>
-#include <unordered_set>
 using namespace llvm;
 using namespace std;
 
@@ -24,7 +23,9 @@ bool Guardia(Loop *First, Loop *Second) {
   BasicBlock *B = First->getLoopGuardBranch()->getSuccessor(0);
   // Noi non vogliamo il pre-header, ci interessa il successore
   // non loop
+
   if (B == First->getLoopPreheader()) {
+    outs() << "Ciaoooo\n";
     B = First->getLoopGuardBranch()->getSuccessor(0);
   }
 
@@ -38,10 +39,10 @@ bool Controllo_1(Loop *First, Loop *Second) {
   // 1) Primo controllo entrambi devono essere adiacenti
 
   if (First->getExitBlock() == Second->getLoopPreheader()) {
-    outs() << "Non c'è la guardia\n";
+    outs() << "1) Non c'è la guardia\n";
     return true;
   } else if (First->isGuarded() && Second->isGuarded()) {
-    outs() << "Entrambi con guardia\n";
+    outs() << "1) Entrambi con guardia\n";
     if (Guardia(First, Second)) {
       return true;
     }
@@ -57,11 +58,12 @@ bool Controllo_2(Loop *First, Loop *Second, ScalarEvolution &SC) {
   const SCEV *PR = SC.getBackedgeTakenCount(First);
   const SCEV *SE = SC.getBackedgeTakenCount(Second);
 
-  //if (!isa<SCEVCouldNotCompute>(PR) && !isa<SCEVCouldNotCompute>(SE)) {
+  // if (!isa<SCEVCouldNotCompute>(PR) && !isa<SCEVCouldNotCompute>(SE)) {
 
-    if (PR == SE) {
-      return true;
-    }
+  if (PR == SE) {
+    outs() << "2) Entrambi con lo stessoo numero di istruzioni\n";
+    return true;
+  }
   //}
 
   outs() << "I due loop non hanno lo stesso numero di iterazioni\n";
@@ -71,9 +73,9 @@ bool Controllo_2(Loop *First, Loop *Second, ScalarEvolution &SC) {
 bool Controllo_3(Loop *First, Loop *Second, DominatorTree &DT,
                  PostDominatorTree &PDT) {
   // 3) Terzo controllo entrambi devono essere adiacenti
-  BasicBlock *FirstStart = First->getHeader();
+  BasicBlock *FirstStart = First->getLoopPreheader();
   BasicBlock *FirstEnd = First->getExitBlock();
-  BasicBlock *SecondStart = Second->getHeader();
+  BasicBlock *SecondStart = Second->getLoopPreheader();
   BasicBlock *SecondEnd = Second->getExitBlock();
 
   // Verifica della dominanza
@@ -82,6 +84,7 @@ bool Controllo_3(Loop *First, Loop *Second, DominatorTree &DT,
 
   // Condizione di adiacenza
   if (FirstDominatesSecond || SecondPostDominatesFirst) {
+    outs() << "3) Il primo domina il secondo\n";
     return true;
   }
 
@@ -123,6 +126,8 @@ bool Controllo_4(Loop *First, Loop *Second, DependenceInfo &DI) {
     }
   }
 
+  outs() << "4) Indipendenza di entrambi verificata\n";
+
   // Se non ci sono dipendenze che impediscono la fusione, ritorna true
   return true;
 }
@@ -130,10 +135,13 @@ bool Controllo_4(Loop *First, Loop *Second, DependenceInfo &DI) {
 PreservedAnalyses LoopFusionPass::run(Function &F,
                                       FunctionAnalysisManager &AM) {
 
+  //Primo punto
   LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+
   // Terzo punto
   DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
   PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
+
   // Secondo punto
   ScalarEvolution &SC = AM.getResult<ScalarEvolutionAnalysis>(F);
 
@@ -142,20 +150,19 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
 
   // Scorrimento dei loop all'interno della Funzione
 
-  //for (auto iteraz = LI.end() - 1; iteraz != LI.begin(); --iteraz) {
-  for (auto iteraz = LI.getTopLevelLoops().end()-1; iteraz != LI.getTopLevelLoops().begin(); --iteraz) {
+  for (auto iteraz = LI.begin(); iteraz != LI.end() ; ++iteraz) {
 
+    // Calcolo del primo ciclo al quale siamo all'interno
     Loop *Primo = *iteraz;
-    //auto nextIteraz = std::next(iteraz);
-    //if (nextIteraz == LI.end())
-    //break;
-    //if (iteraz == LI.begin())
-    //  break;
-    Loop *Secondo = *(iteraz - 1);
+    // Calcolo del secondo ciclo al quale siamo all'interno
+    Loop *Secondo = *(iteraz + 1);
 
-    //*nextIteraz;
-    outs() << "Ora effettuiamo i controlli\n";
+    if (!Primo || !Secondo) {
+      outs() << "Il secondo è nullo!\n";
+      break;
+    }
 
+    // Effettuazione dei controlli
     bool primo = Controllo_1(Primo, Secondo);
     bool secondo = Controllo_2(Primo, Secondo, SC);
     bool terzo = Controllo_3(Primo, Secondo, DT, PDT);
@@ -163,13 +170,15 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
 
     if (primo && secondo && terzo && quarto) {
       outs() << "I due loop sono adiacenti\n";
-    }
+    } 
     else {
-      outs() << primo<<"\n"<<secondo<<"\n"<<terzo<<"\n"<<quarto<<"\n";
-      outs() << "Due cicli non adiacenti\n";
+      outs() << primo << "\n"
+             << secondo << "\n"
+             << terzo << "\n"
+             << quarto << "\n"
+             << "Due cicli non adiacenti\n";
     }
   }
-  //outs() <<"Fuori\n";
 
   return PreservedAnalyses::all();
 }
