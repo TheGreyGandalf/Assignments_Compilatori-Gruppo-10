@@ -1,11 +1,12 @@
 #include "llvm/Transforms/Utils/LoopFusionPass.h"
+
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
-#include <fstream>
-#include <iostream>
-#include <iterator>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Function.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/LLVMContext.h>
+
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/GenericDomTree.h>
 #include <llvm/Support/raw_ostream.h>
@@ -14,6 +15,8 @@
 #include "llvm/Analysis/PostDominators.h"
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Analysis/ScalarEvolution.h>
+
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include <sched.h>
 using namespace llvm;
@@ -25,7 +28,6 @@ bool Guardia(Loop *First, Loop *Second) {
   // non loop
 
   if (B == First->getLoopPreheader()) {
-    outs() << "Ciaoooo\n";
     B = First->getLoopGuardBranch()->getSuccessor(0);
   }
 
@@ -84,7 +86,7 @@ bool Controllo_3(Loop *First, Loop *Second, DominatorTree &DT,
 
   // Condizione di adiacenza
   if (FirstDominatesSecond || SecondPostDominatesFirst) {
-    outs() << "3) Il primo domina il secondo\n";
+    outs() << "3) Il Primo domina il secondo\n";
     return true;
   }
 
@@ -94,7 +96,7 @@ bool Controllo_3(Loop *First, Loop *Second, DominatorTree &DT,
 bool Controllo_4(Loop *First, Loop *Second, DependenceInfo &DI) {
   // 4) Terzo controllo entrambi devono Essere indipendenti
 
-  // Raccogli le istruzioni nel primo loop
+  // Raccogli le istruzioni nel Primo loop
   std::vector<Instruction *> FirstLoopInstructions;
   for (BasicBlock *BB : First->blocks()) {
     for (Instruction &I : *BB) {
@@ -132,10 +134,117 @@ bool Controllo_4(Loop *First, Loop *Second, DependenceInfo &DI) {
   return true;
 }
 
+// Funzione che ha il compito di ottimizzare i due loop che hanno superato tutti
+// e 4 i check
+Loop *Ottimizza(Loop *Primo, Loop *Secondo, Function &F,
+                FunctionAnalysisManager &AM, LoopInfo &LI,
+                ScalarEvolution &SC) {
+
+  // Ottenimento di tutti i dati del primo Loop
+  auto PrimoPreheader = Primo->getLoopPreheader();
+  auto PrimoLatch = Primo->getLoopLatch();
+  // In questi due era diverso ma dava errore senno
+  BasicBlock *PrimoBody /* =Primo->getSinglePredecessor()*/;
+
+  for (BasicBlock *pred : predecessors(PrimoLatch)) {
+    if (Primo->contains(pred)) {
+      PrimoBody = pred;
+      break;
+    }
+  }
+  BasicBlock *PrimoBodyEntry /*= Primo->getSingleSuccessor()*/;
+
+  for (BasicBlock *succ : predecessors(PrimoPreheader)) {
+    if (Primo->contains(succ)) {
+      PrimoBodyEntry = succ;
+      break;
+    }
+  }
+  auto PrimoGuard = Primo->getLoopGuardBranch();
+
+  // Ottenimento di tutti i dati del secondo Loop
+  auto SecondoPreheader = Secondo->getLoopPreheader();
+  auto SecondoLatch = Secondo->getLoopLatch();
+  BasicBlock *SecondoBody /*= Secondo->getSinglePredecessor()*/;
+
+  for (BasicBlock *pred : predecessors(SecondoLatch)) {
+    if (Primo->contains(pred)) {
+      SecondoBody = pred;
+      break;
+    }
+  }
+  BasicBlock *SecondoBodyEntry /*= Secondo->getSingleSuccessor()*/;
+
+  for (BasicBlock *succ : predecessors(SecondoPreheader)) {
+    if (Primo->contains(succ)) {
+      SecondoBodyEntry = succ;
+      break;
+    }
+  }
+  auto SecondoExit = Secondo->getExitBlock();
+
+  // Recupera blocchi del secondo Loop
+  SmallVector<BasicBlock *, 8> Aggiungi(Secondo->blocks());
+  Aggiungi.erase(remove(Aggiungi.begin(), Aggiungi.end(), SecondoLatch),
+                 Aggiungi.end());
+  Aggiungi.push_back(SecondoPreheader);
+
+  // Aggiornamento variabili di induzione
+  PHINode *PrimoIV = Primo->getInductionVariable(SC);
+  Value *PrimoValueIV = dyn_cast<Value>(PrimoIV);
+
+  PHINode *SecondoIV = Secondo->getInductionVariable(SC);
+  Value *SecondoValueIV = dyn_cast<Value>(SecondoIV);
+
+  SecondoValueIV->replaceAllUsesWith(PrimoValueIV);
+  SecondoIV->eraseFromParent();
+
+  // Sposta Phi nodes dal secondo Loop al primo Loop
+  for (PHINode &phi : SecondoBodyEntry->phis()) {
+    phi.replaceUsesOfWith(SecondoLatch, PrimoLatch);
+    phi.replaceUsesOfWith(SecondoPreheader, PrimoPreheader);
+  }
+  SecondoExit->replacePhiUsesWith(SecondoLatch, PrimoLatch);
+
+  SmallVector<Instruction *, 8> toBeMoved;
+  for (Instruction &SecondoInst : *SecondoBodyEntry) {
+    if (isa<PHINode>(SecondoInst)) {
+      toBeMoved.push_back(&SecondoInst);
+    }
+  }
+
+  Instruction *movePoint = PrimoBodyEntry->getFirstNonPHI();
+  for (Instruction *i : toBeMoved) {
+    i->moveBefore(movePoint);
+  }
+
+  // Modifica il CFG per riflettere la fusione
+  PrimoLatch->getTerminator()->setSuccessor(1, SecondoExit);
+  PrimoBody->getTerminator()->replaceSuccessorWith(PrimoLatch,
+                                                   SecondoPreheader);
+  SecondoBody->getTerminator()->replaceSuccessorWith(SecondoLatch, PrimoLatch);
+  SecondoLatch->getTerminator()->replaceSuccessorWith(SecondoExit,
+                                                      SecondoLatch);
+  if (PrimoGuard)
+    PrimoGuard->setSuccessor(1, SecondoExit);
+
+  // Pulizia dei blocchi irraggiungibili
+  EliminateUnreachableBlocks(F);
+
+  // Elimina il secondo Loop e aggiungi i suoi blocchi al primo Loop
+  LI.erase(Secondo);
+  for (BasicBlock *bb : Aggiungi) {
+    Primo->addBasicBlockToLoop(bb, LI);
+  }
+
+  // Restituisci il primo loop del blocco fuso
+  return Primo;
+}
+
 PreservedAnalyses LoopFusionPass::run(Function &F,
                                       FunctionAnalysisManager &AM) {
 
-  //Primo punto
+  // Primo punto
   LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
 
   // Terzo punto
@@ -150,9 +259,9 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
 
   // Scorrimento dei loop all'interno della Funzione
 
-  for (auto iteraz = LI.begin(); iteraz != LI.end() ; ++iteraz) {
+  for (auto iteraz = LI.begin(); iteraz != LI.end(); ++iteraz) {
 
-    // Calcolo del primo ciclo al quale siamo all'interno
+    // Calcolo del Primo ciclo al quale siamo all'interno
     Loop *Primo = *iteraz;
     // Calcolo del secondo ciclo al quale siamo all'interno
     Loop *Secondo = *(iteraz + 1);
@@ -163,16 +272,18 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
     }
 
     // Effettuazione dei controlli
-    bool primo = Controllo_1(Primo, Secondo);
+    bool first = Controllo_1(Primo, Secondo);
     bool secondo = Controllo_2(Primo, Secondo, SC);
     bool terzo = Controllo_3(Primo, Secondo, DT, PDT);
     bool quarto = Controllo_4(Primo, Secondo, DI);
 
-    if (primo && secondo && terzo && quarto) {
+    if (first && secondo && terzo && quarto) {
       outs() << "I due loop sono adiacenti\n";
-    } 
-    else {
-      outs() << primo << "\n"
+      // In caso di requisiti soddisfatti allora è possibile ristrutturare il
+      // Primo ciclo
+      Primo = Ottimizza(Primo, Secondo, F, AM, LI, SC);
+    } else {
+      outs() << first << "\n"
              << secondo << "\n"
              << terzo << "\n"
              << quarto << "\n"
