@@ -23,20 +23,6 @@
 using namespace llvm;
 using namespace std;
 
-/*bool Guardia(Loop *First, Loop *Second) {
-  BasicBlock *B = First->getLoopGuardBranch()->getSuccessor(0);
-  // Noi non vogliamo il pre-header, ci interessa il successore
-  // non loop
-
-  if (B == First->getLoopPreheader()) {
-    B = First->getLoopGuardBranch()->getSuccessor(0);
-  }
-
-  if (B == Second->getHeader()) {
-    return true;
-  }
-  return false;
-}*/
 
 bool Guardia(Loop *First, Loop *Second) {
   BranchInst *GB = First->getLoopGuardBranch();
