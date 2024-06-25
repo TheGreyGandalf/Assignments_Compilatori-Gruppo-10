@@ -1,5 +1,6 @@
 #include "llvm/Transforms/Utils/LoopFusionPass.h"
 
+//#include "llvm/IR.Instructions.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
 #include <llvm/IR/BasicBlock.h>
@@ -22,7 +23,7 @@
 using namespace llvm;
 using namespace std;
 
-bool Guardia(Loop *First, Loop *Second) {
+/*bool Guardia(Loop *First, Loop *Second) {
   BasicBlock *B = First->getLoopGuardBranch()->getSuccessor(0);
   // Noi non vogliamo il pre-header, ci interessa il successore
   // non loop
@@ -35,13 +36,25 @@ bool Guardia(Loop *First, Loop *Second) {
     return true;
   }
   return false;
+}*/
+
+bool Guardia(Loop *First, Loop *Second) {
+  BranchInst *GB = First->getLoopGuardBranch();
+  for (unsigned i = 0; i < GB->getNumSuccessors(); i++) {
+    BasicBlock *B = GB->getSuccessor(i);
+    if (B == Second->getHeader()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool Controllo_1(Loop *First, Loop *Second) {
   // 1) Primo controllo entrambi devono essere adiacenti
 
-  if (First->getExitBlock() == Second->getLoopPreheader()) {
-    outs() << "1) Non c'è la guardia\n";
+  if (First->getExitBlock() == Second->getLoopPreheader()
+      || First->getExitBlock() == Second->getHeader()) {
+    outs() << "1) Non c'è la guardia e sono adiecenti\n";
     return true;
   } else if (First->isGuarded() && Second->isGuarded()) {
     outs() << "1) Entrambi con guardia\n";
@@ -266,7 +279,7 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
     // Calcolo del secondo ciclo al quale siamo all'interno
     Loop *Secondo = *(iteraz + 1);
 
-    if (!Primo || !Secondo) {
+    if (!Secondo) {
       outs() << "Il secondo è nullo!\n";
       break;
     }
