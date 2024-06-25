@@ -23,11 +23,13 @@ columns: (auto, auto),
     [], [*Dataflow problem 1*],
   ),
   "Domain","Espressioni",
-  "Direction","Backward",
-  "Transfer function", $"GEN"(B) union ("IN"[B] - "KILL"[B]) $,
+  "Direction",[Backward \
+   IN[b] = $f_b$(OUT[b]) \
+   OUT[b] = ^IN[succ(b)]],
+  "Transfer function", $"Gen"(b) union ("OUT"[b] - "Kill"[b]) $,
   "Meet operator", [$sect$, Intersezione] ,
-  "Boundary condition", $"OUT"[B]_("Finale") = emptyset$,
-  "Initial Interior points", $"IN"[B]_("Inizio") = emptyset$,
+  "Boundary condition", [IN[Exit] = $emptyset$],
+  "Initial Interior points", [IN[b] = _U_]
 ))
 
 #linebreak()
@@ -85,11 +87,11 @@ columns: (auto, auto),
     [], [*Dataflow problem 2*],
   ),
   "Domain", "Blocchi",
-  "Direction",[Forward\ OUT[b]= $f_b ("IN[b]")$\ IN[B] = $and$ OUT[pred[b]]],
+  "Direction",[Forward\ OUT[b]= $f_b ("IN[b]")$\ IN[b] = $and$ OUT[pred(b)]],
   "Transfer function", [$f_b (x)={b} union x$],
   "Meet operator", [$sect$],
   "Boundary condition", [OUT[Entry] = Entry],
-  "Initial Interior points", [OUT[B]=$U$],
+  "Initial Interior points", [OUT[b]= $U$],
 ))
 
 
@@ -125,11 +127,12 @@ columns: (auto, auto),
     [], [*Dataflow problem 3*],
   ),
   "Domain", [Insieme di coppie \<Variabile, Valore\>],
-  "Direction", [Forward, $"OUT"_B$ = $f_b$($"IN"_B$)\ $"IN"_B$ = ($and$ OUT[pred(B)] )],
-  "Transfer function", [$f_b (x)="GEN"_B union (x - "Kill"_B)$],
+  "Direction", [Forward \
+   OUT[b] = $f_b$(IN[b])\ IN[b] = ($and$ OUT[pred(b)] )],
+  "Transfer function", [$f_b (x)="Gen"_b union (x - "Kill"_b)$],
   "Meet operator", [$sect$, Intersezione],
-  "Boundary condition", [out[entry]=$emptyset$],
-  "Initial Interior points", [OUT[B]=$U$],
+  "Boundary condition", [OUT[entry]=$emptyset$],
+  "Initial Interior points", [OUT[b]=$U$],
 ))
 
 #figure(
