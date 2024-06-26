@@ -24,6 +24,7 @@ using namespace llvm;
 using namespace std;
 
 
+// Controllo tra i due loop e le rispettive guardie-header
 bool Guardia(Loop *First, Loop *Second) {
   BranchInst *GB = First->getLoopGuardBranch();
   for (unsigned i = 0; i < GB->getNumSuccessors(); i++) {
@@ -40,7 +41,7 @@ bool Controllo_1(Loop *First, Loop *Second) {
 
   if (First->getExitBlock() == Second->getLoopPreheader()
       || First->getExitBlock() == Second->getHeader()) {
-    outs() << "1) Non c'è la guardia e sono adiecenti\n";
+    outs() << "1) Non c'è la guardia e sono adiacenti\n";
     return true;
   } else if (First->isGuarded() && Second->isGuarded()) {
     outs() << "1) Entrambi con guardia\n";
@@ -56,16 +57,17 @@ bool Controllo_2(Loop *First, Loop *Second, ScalarEvolution &SC) {
   // 2) Secondo controllo entrambi
   // Devono avere lo stesso numero di iterazioni
 
+  // Conversione ad un oggetto che è in grado di quantificare il numero
+  // di istruzioni dei due loop
   const SCEV *PR = SC.getBackedgeTakenCount(First);
   const SCEV *SE = SC.getBackedgeTakenCount(Second);
 
   // if (!isa<SCEVCouldNotCompute>(PR) && !isa<SCEVCouldNotCompute>(SE)) {
 
   if (PR == SE) {
-    outs() << "2) Entrambi con lo stessoo numero di istruzioni\n";
+    outs() << "2) Entrambi con lo stesso numero di istruzioni\n";
     return true;
   }
-  //}
 
   outs() << "I due loop non hanno lo stesso numero di iterazioni\n";
   return false;
@@ -135,7 +137,7 @@ bool Controllo_4(Loop *First, Loop *Second, DependenceInfo &DI) {
 
 // Funzione che ha il compito di ottimizzare i due loop che hanno superato tutti
 // e 4 i check
-Loop *Ottimizza(Loop *Primo, Loop *Secondo, Function &F,
+Loop *LoopF(Loop *Primo, Loop *Secondo, Function &F,
                 FunctionAnalysisManager &AM, LoopInfo &LI,
                 ScalarEvolution &SC) {
 
@@ -164,7 +166,7 @@ Loop *Ottimizza(Loop *Primo, Loop *Secondo, Function &F,
   // Ottenimento di tutti i dati del secondo Loop
   auto SecondoPreheader = Secondo->getLoopPreheader();
   auto SecondoLatch = Secondo->getLoopLatch();
-  BasicBlock *SecondoBody /*= Secondo->getSinglePredecessor()*/;
+  BasicBlock *SecondoBody;
 
   for (BasicBlock *pred : predecessors(SecondoLatch)) {
     if (Primo->contains(pred)) {
@@ -172,7 +174,7 @@ Loop *Ottimizza(Loop *Primo, Loop *Secondo, Function &F,
       break;
     }
   }
-  BasicBlock *SecondoBodyEntry /*= Secondo->getSingleSuccessor()*/;
+  BasicBlock *SecondoBodyEntry;
 
   for (BasicBlock *succ : predecessors(SecondoPreheader)) {
     if (Primo->contains(succ)) {
@@ -205,15 +207,17 @@ Loop *Ottimizza(Loop *Primo, Loop *Secondo, Function &F,
   }
   SecondoExit->replacePhiUsesWith(SecondoLatch, PrimoLatch);
 
-  SmallVector<Instruction *, 8> toBeMoved;
+  // Inserimento All'interno di un vettore delle istruzioni spostabili
+  SmallVector<Instruction *, 8> Sposta;
   for (Instruction &SecondoInst : *SecondoBodyEntry) {
     if (isa<PHINode>(SecondoInst)) {
-      toBeMoved.push_back(&SecondoInst);
+      Sposta.push_back(&SecondoInst);
     }
   }
 
+  // Spostamento delle istruzioni
   Instruction *movePoint = PrimoBodyEntry->getFirstNonPHI();
-  for (Instruction *i : toBeMoved) {
+  for (Instruction *i : Sposta) {
     i->moveBefore(movePoint);
   }
 
@@ -265,6 +269,9 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
     // Calcolo del secondo ciclo al quale siamo all'interno
     Loop *Secondo = *(iteraz + 1);
 
+    // Presi due cicli alla volta effettua dei controlli che servono per controllare
+    // se è possibile fondere due loop 
+
     if (!Secondo) {
       outs() << "Il secondo è nullo!\n";
       break;
@@ -277,16 +284,16 @@ PreservedAnalyses LoopFusionPass::run(Function &F,
     bool quarto = Controllo_4(Primo, Secondo, DI);
 
     if (first && secondo && terzo && quarto) {
-      outs() << "I due loop sono adiacenti\n";
+      outs() << "I due loop sono candidati alla Fusione\n";
       // In caso di requisiti soddisfatti allora è possibile ristrutturare il
       // Primo ciclo
-      Primo = Ottimizza(Primo, Secondo, F, AM, LI, SC);
+      Primo = LoopF(Primo, Secondo, F, AM, LI, SC);
     } else {
-      outs() << first << "\n"
-             << secondo << "\n"
-             << terzo << "\n"
-             << quarto << "\n"
-             << "Due cicli non adiacenti\n";
+      outs() << "Controllo 1:" << first << "\n"
+             << "Controllo 2:" << secondo << "\n"
+             << "Controllo 3:" << terzo << "\n"
+             << "Controllo 4:" << quarto << "\n"
+             << "Due cicli non unibili\n";
     }
   }
 
