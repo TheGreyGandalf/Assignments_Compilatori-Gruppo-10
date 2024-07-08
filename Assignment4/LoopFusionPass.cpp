@@ -75,7 +75,7 @@ bool Controllo_2(Loop *First, Loop *Second, ScalarEvolution &SC) {
 
 bool Controllo_3(Loop *First, Loop *Second, DominatorTree &DT,
                  PostDominatorTree &PDT) {
-  // 3) Terzo controllo entrambi devono essere adiacenti
+  // 3) Terzo controllo cf equivalent
   BasicBlock *FirstStart = First->getLoopPreheader();
   BasicBlock *FirstEnd = First->getExitBlock();
   BasicBlock *SecondStart = Second->getLoopPreheader();
@@ -86,7 +86,7 @@ bool Controllo_3(Loop *First, Loop *Second, DominatorTree &DT,
   bool SecondPostDominatesFirst = PDT.dominates(SecondEnd, FirstStart);
 
   // Condizione di adiacenza
-  if (FirstDominatesSecond || SecondPostDominatesFirst) {
+  if (FirstDominatesSecond && SecondPostDominatesFirst) {
     outs() << "3) Il Primo domina il secondo\n";
     return true;
   }
