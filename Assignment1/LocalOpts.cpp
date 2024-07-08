@@ -19,6 +19,7 @@ using namespace llvm;
 
 bool runOnBasicBlock(BasicBlock &B) {
 
+  /*
   // Preleviamo le prime due istruzioni del BB
   Instruction &Inst1st = *B.begin(), &Inst2nd = *(++B.begin());
 
@@ -67,6 +68,7 @@ bool runOnBasicBlock(BasicBlock &B) {
   // Controlla la documentazione e prova a rispondere.
   Inst1st.replaceAllUsesWith(NewInst);
 
+  */
   // Codice per il Primo assignment
   for (auto &Inst : B) {
     // Verifica se l'istruzione è di tipo moltiplicazione
@@ -119,7 +121,7 @@ bool runOnBasicBlock(BasicBlock &B) {
             Inst.replaceAllUsesWith(ShiftInst);
             ConstantInt *oneConstant = ConstantInt::get(C->getType(), 1);
             Instruction *SubInst = BinaryOperator::Create(
-                Instruction::Sub, Inst.getOperand(0), oneConstant, "", &Inst);
+                Instruction::Add, Inst.getOperand(0), oneConstant, "", &Inst);
             SubInst->insertAfter(&Inst);
             continue;
           }
@@ -133,7 +135,7 @@ bool runOnBasicBlock(BasicBlock &B) {
             ConstantInt *oneConstant = ConstantInt::get(C->getType(), 1);
 
             Instruction *AddInst = BinaryOperator::Create(
-                Instruction::Add, Inst.getOperand(0), oneConstant, "", &Inst);
+                Instruction::Sub, Inst.getOperand(0), oneConstant, "", &Inst);
             AddInst->insertAfter(&Inst);
             continue;
           }
@@ -206,7 +208,7 @@ bool runOnBasicBlock(BasicBlock &B) {
           }
         }
       } else {
-        // Ottimizzazioni per la moltiplicazione per 0
+        // Ottimizzazioni per la addizione per 0
 
         // prendo i due operandi
         Value *Op0 = Inst.getOperand(0);
